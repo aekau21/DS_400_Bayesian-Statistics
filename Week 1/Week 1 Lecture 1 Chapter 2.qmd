@@ -218,7 +218,7 @@ pop_vs_soda %>%
 
 ```{r}
 pop_vs_soda %>% 
-  tabyl(region, pop) %>% 
+  tabyl(pop, region) %>% 
   adorn_percentages("col")
 ```
 
@@ -233,4 +233,38 @@ likelihood_says_pop <- 0.05
 ```{r}
 prior_probability_southern_citizen_S_A * likelihood_says_pop/
 prior_probability_says_pop_pa
+```
+
+```{r}
+likelihoods <- pop_vs_soda %>% 
+  tabyl(pop, region) %>% 
+  adorn_percentages("col") %>% 
+  filter(pop == "TRUE") %>% 
+  select(-pop) %>% 
+  unlist()
+
+likelihoods
+
+```
+
+```{r}
+prior <- (c(midwest = 0.21,
+            northeast = 0.17,
+            south = 0.38,
+            west = 0.24))
+prior
+```
+
+3\) Marginal prior probability that a person uses the word pop
+
+```{r}
+prior_probability_says_pop <- sum(prior*likelihoods)
+prior_probability_says_pop
+  
+```
+
+4) Finding our posterior probability P(S\|A)
+
+```{r}
+(prior[3] * likelihoods[3]) / prior_probability_says_pop
 ```
