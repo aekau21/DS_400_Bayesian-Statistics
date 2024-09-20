@@ -263,7 +263,7 @@ prior_probability_says_pop
   
 ```
 
-4) Finding our posterior probability P(S\|A)
+4)  Finding our posterior probability P(S\|A)
 
 ```{r}
 (prior[3] * likelihoods[3]) / prior_probability_says_pop

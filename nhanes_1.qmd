@@ -1,0 +1,225 @@
+---
+title: "NHANES Challenge"
+format: html
+editor: visual
+---
+
+### Load Libraries
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(car)
+library(tidyverse)
+library(haven)
+library(here)
+library(ggplot2)
+library(janitor)
+```
+
+### Read-in Datasets for this Analysis:
+
+-   DR1TOT_J.xpt as 'diet_behavior'
+-   2017-2018_Hg-Blood.XPT as 'blood_hg'
+-   2017-2018_Hg-Urine.XPT as 'urine_hg'
+-   2017-2018_Diabetes.XPT as 'diabetes'
+
+```{r}
+diet_behavior <- read_xpt(here("data/nhanes_data/DR1TOT_J.XPT"))
+blood_hg <- read_xpt(here("data/nhanes_data/2017-2018_Hg-Blood.XPT"))
+urine_hg <- read_xpt(here("data/nhanes_data/2017-2018_Hg-Urine.XPT"))
+diabetes <- read_xpt(here("data/nhanes_data/2017-2018_Diabetes.XPT"))
+demographics <- read_xpt(here("data/nhanes_data/2017-2018_Demographics.XPT"))
+```
+
+### Subset Read-in Datasets
+
+Subset 'diet_behavior' as 'diet'
+
+```{r}
+diet <- select(diet_behavior, SEQN, DRD360, DRD370B, DRD370BQ, DRD370Q, DRD370QQ)
+```
+
+Subset 'diabetes' as 'tiid'
+
+```{r}
+tiid <- select(diabetes, SEQN, DIQ010)
+```
+
+Subset 'blood_hg' as 'bhg'
+
+```{r}
+bhg <- select(blood_hg, SEQN, LBXIHG, LBDIHGSI, LBXBGE, LBXBGM)
+```
+
+Subset "urine_hg' as 'uhg'
+
+```{r}
+uhg <- select(urine_hg, SEQN, URXUHG)
+```
+
+### Merge Subsets Into A Working Dataframe as 'df'
+
+```{r}
+df <- list(diet, tiid, bhg, uhg)
+
+df <- df %>% reduce(full_join, by = 'SEQN')
+```
+
+1.  Filter Dataframe df for the following:
+
+```{r}
+# Assuming your dataframe is named `nhanes_data`
+df <- df %>%
+  # Filter out rows where DIQ010 or DRD360 are NA
+  filter(!is.na(DIQ010), !is.na(DRD370B)) %>%
+  # Keep only rows where DIQ010 and DRD360 are 1 or 2
+  filter(DIQ010 %in% c(1, 2), DRD370B %in% c(1, 2)) %>%
+  # Recode 1 to "Yes" and 2 to "No" for DIQ010 and DRD360
+  mutate(
+    DIQ010 = ifelse(DIQ010 == 1, "Has Diabetes", "No Diabetes"),
+    DRD370B = ifelse(DRD370B == 1, "Consumes Ahi", "No Ahi!")
+  )
+  
+```
+
+2.  Do some exploratory data analysis
+
+```{r}
+ggplot(data = df, aes(x = DRD360)) + 
+  geom_bar() + 
+  facet_grid(~DRD370B) +
+  labs(title = "Fish Eaten in the Past 30 Days", x = "Fish Eaten" , y = "Count")
+```
+
+## Bayes Theorem - P(B\|A)
+
+B \<- Has Diabetes
+
+A \<- Consumes Ahi
+
+2.  Determine the prior probability that someone has diabetes (DIQ010)
+
+    -   P(B)
+
+```{r}
+# Prior Probabillity person has diabetes
+df %>% 
+  tabyl(DIQ010) 
+```
+
+```{r}
+prior_probabillity_someone_has_diabetes = 0.1287574
+```
+
+2.  Determine the prior probability that someone eats tuna (DRD370B)
+    -   P(A)
+
+```{r}
+# Prior Probabillity person eats tuna
+df %>% 
+  tabyl(DRD370B) # gets the number of types in a particular column
+
+
+prior_probabillity_someone_eats_tuna = 0.3609467
+```
+
+2.  Determine the likelihood of eating tuna and having diabetes
+    -   L(B\|A) = P(B\|A)
+
+```{r}
+ df %>% 
+   tabyl(DRD370B,DIQ010 ) %>% 
+   adorn_percentages("col")
+ 
+liklihood_someone_eats_tuna_has_diabetes = 0.3584559
+```
+
+2.  Determine posterior probability via bayes theorem
+    -   P(B\|A)
+
+```{r}
+(prior_probabillity_someone_has_diabetes * liklihood_someone_eats_tuna_has_diabetes) / prior_probabillity_someone_eats_tuna
+```
+
+2.  What other questions can we ask of this data?
+
+We can ask if someone has diabetes if they eat swordfish. We can also do if they don't eat tuna or swordfish.
+
+#### NHANES Challenge
+
+P(A\|B)
+
+```{r}
+df %>% 
+  tabyl(DIQ010, DRD370B) %>% 
+  adorn_percentages("col")
+```
+
+.13 would be our posterior probabillity
+
+#### Diabetes & Age
+
+Selecting columns from demographics column
+
+```{r}
+demographics <- demographics %>% 
+  select(SEQN, RIDRETH1, RIAGENDR, RIDAGEYR)
+```
+
+Joining 2 data frames df and demographics together by "SEQN" column
+
+```{r}
+nhanes_data <- left_join(df, demographics, by = "SEQN")
+```
+
+Creating a new column "Age Bracket"
+
+```{r}
+nhanes_data <- nhanes_data %>% 
+  mutate(age_bracket = ifelse(RIDAGEYR > 40,"Over 40", "Under 40"))
+```
+
+P(B\|A) Finding the probability that someone has diabetes given their age is over 40
+
+B \<- has diabetes
+
+A \<- Age over 40
+
+P(B)
+
+```{r}
+nhanes_data %>% 
+  tabyl(DIQ010)
+```
+
+```{r}
+prior_probabillity_has_diabetes_nhanes <- 0.1287574
+```
+
+```{r}
+nhanes_data %>%
+  tabyl(age_bracket, DIQ010) %>% 
+  adorn_percentages("col")
+  
+```
+
+```{r}
+likelhood_someone_has_diabetes_over_40 <- 0.95588235
+```
+
+P(A)
+
+```{r}
+nhanes_data %>%
+  tabyl(age_bracket)
+```
+
+```{r}
+prior_probability_someone_is_over_40 <- 0.5342012
+```
+
+Finding the posterior probability
+
+```{r}
+(prior_probabillity_has_diabetes_nhanes * likelhood_someone_has_diabetes_over_40) / prior_probability_someone_is_over_40
+```
